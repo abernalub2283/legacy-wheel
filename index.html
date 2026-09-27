@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Legacy Picker Wheel</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <h1>Legacy Picker Wheel</h1>
+    <canvas id="wheel" width="420" height="420"></canvas>
+    <button id="spin-btn">Spin</button>
+    <div id="winner"></div>
+    <div id="add-entry">
+        <input type="text" id="new-entry" placeholder="Legacy name">
+        <button id="add-btn">Add</button>
+    </div>
+    <ul id="entry-list"></ul>
+
+    <script>
+        const TAU = Math.PI * 2;
+
+        const seedLegacies = [
+            'Sugarspun Tide', 'Bittersweet', 'Spiced Orchard', 'Petalstorm',
+            'Moon Jelly', 'Love Spell', 'Candy Cosmos', 'Mint Whip'
+        ];
+
+        const colors = ['#c9a227', '#8a9a5b', '#6b8cae', '#b76e79', '#c67b5c', '#e8e0d0', '#9a8ac9', '#7fb3a3'];
+
+        let entries;
+        const saved = localStorage.getItem('wheelEntries');
+        entries = saved ? JSON.parse(saved) : seedLegacies.slice();
+
+        function saveEntries() {
+            localStorage.setItem('wheelEntries', JSON.stringify(entries));
+        }
+
+        const canvas = document.getElementById('wheel');
+        const ctx = canvas.getContext('2d');
+        const radius = canvas.width / 2;
+        let angle = 0;
+        let spinning = false;
+
+        function drawWheel() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const n = entries.length;
+            if (n === 0) return;
+            const arc = TAU / n;
+            const fontSize = n > 12 ? 11 : 14;
+            for (let i = 0; i < n; i++) {
+                const start = angle + i * arc;
+                ctx.beginPath();
+                ctx.moveTo(radius, radius);
+                ctx.arc(radius, radius, radius - 4, start, start + arc);
+                ctx.closePath();
+                ctx.fillStyle = colors[i % colors.length];
+                ctx.fill();
+                ctx.strokeStyle = '#1a1a2e';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                ctx.save();
+                ctx.translate(radius, radius);
+                ctx.rotate(start + arc / 2);
+                ctx.textAlign = 'right';
+                ctx.fillStyle = '#1a1a2e';
+                ctx.font = 'bold ' + fontSize + 'px Georgia';
+                ctx.fillText(entries[i], radius - 14, fontSize / 3);
+                ctx.restore();
+            }
+            ctx.fillStyle = '#c9a227';
+            ctx.beginPath();
+            ctx.moveTo(radius - 12, 4);
+            ctx.lineTo(radius + 12, 4);
+            ctx.lineTo(radius, 28);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        function spin() {
+            if (spinning || entries.length < 2) return;
+            spinning = true;
+            document.getElementById('winner').textContent = '';
+            const n = entries.length;
+            const arc = TAU / n;
+            const winnerIndex = Math.floor(Math.random() * n);
+
+            const segCenter = winnerIndex * arc + arc / 2;
+            let finalMod = ((-Math.PI / 2 - segCenter) % TAU + TAU) % TAU;
+            let curMod = ((angle % TAU) + TAU) % TAU;
+            let delta = finalMod - curMod;
+            if (delta <= 0) delta += TAU;
+            const turns = 5 + Math.floor(Math.random() * 4);
+            const targetAngle = angle + turns * TAU + delta;
+
+            const startAngle = angle;
+            const startTime = performance.now();
+            const duration = 4000;
+
+            function animate(now) {
+                const t = Math.min((now - startTime) / duration, 1);
+                const eased = 1 - Math.pow(1 - t, 3);
+                angle = startAngle + (targetAngle - startAngle) * eased;
+                drawWheel();
+                if (t < 1) {
+                    requestAnimationFrame(animate);
+                } else {
+                    spinning = false;
+                    document.getElementById('winner').textContent = entries[winnerIndex] + '!';
+                }
+            }
+            requestAnimationFrame(animate);
+        }
+
+        document.getElementById('spin-btn').addEventListener('click', spin);
+
+        document.getElementById('add-btn').addEventListener('click', function() {
+            const input = document.getElementById('new-entry');
+            const name = input.value.trim();
+            if (!name) return;
+            entries.push(name);
+            input.value = '';
+            saveEntries();
+            drawWheel();
+            renderList();
+        });
+
+        function renderList() {
+            const list = document.getElementById('entry-list');
+            list.innerHTML = '';
+            entries.forEach(function(name, index) {
+                const li = document.createElement('li');
+                li.textContent = name + ' ';
+                const btn = document.createElement('button');
+                btn.textContent = '✕';
+                btn.className = 'remove-btn';
+                btn.addEventListener('click', function() {
+                    entries.splice(index, 1);
+                    saveEntries();
+                    drawWheel();
+                    renderList();
+                });
+                li.appendChild(btn);
+                list.appendChild(li);
+            });
+        }
+
+        drawWheel();
+        renderList();
+    </script>
+</body>
+</html>
